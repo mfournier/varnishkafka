@@ -30,7 +30,7 @@
 
 
 #define _XOPEN_SOURCE 500    /* for strptime() */
-#define _BSD_SOURCE          /* for daemon() */
+#define _DEFAULT_SOURCE          /* for daemon() */
 #define _GNU_SOURCE          /* for strndupa() */
 #include <ctype.h>
 #include <signal.h>
@@ -1862,7 +1862,7 @@ static void varnish_api_cleaning(void) {
 		VSL_Delete(conf.vsl);
 
 	if (conf.vsm)
-		VSM_Delete(conf.vsm);
+		VSM_Destroy(&conf.vsm);
 
 }
 
@@ -1871,11 +1871,11 @@ static void varnish_api_cleaning(void) {
  * used to know if a VSLQ query/filter needs to be set or not.
  * Returns 0 in case of success, -1 otherwise.
  */
-static int varnish_api_open_handles(struct VSM_data **vsm, struct VSL_data **vsl,
+static int varnish_api_open_handles(struct vsm **vsm, struct VSL_data **vsl,
 				    struct VSL_cursor **vsl_cursor,
 				    unsigned int vsl_cursor_options,
 				    struct VSLQ **vslq, char* vslq_query) {
-	if (VSM_Open(*vsm) < 0) {
+	if (VSM_Attach(*vsm, STDERR_FILENO) < 0) {
 		vk_log("VSM_OPEN", LOG_DEBUG, "Failed to open Varnish VSL: %s\n", VSM_Error(*vsm));
 		return -1;
 	}
@@ -2122,15 +2122,15 @@ int main (int argc, char **argv) {
 	 * a SHM file related to a specific varnishd instance (-n)
 	 */
 	if (conf.N_flag) {
-		if (!VSM_N_Arg(conf.vsm, conf.N_flag_path)) {
-			vk_log("VSM_N_arg", LOG_ERR, "Failed to open %s: %s",
+		if (!VSM_Arg(conf.vsm, 'N', conf.N_flag_path)) {
+			vk_log("VSM_arg", LOG_ERR, "Failed to open %s: %s",
 					conf.N_flag_path, VSM_Error(conf.vsm));
 			varnish_api_cleaning();
 			exit(1);
 		}
 	} else if (conf.n_flag) {
-		if (!VSM_n_Arg(conf.vsm, conf.n_flag_name)) {
-			vk_log("VSM_n_arg", LOG_ERR, "Failed to open shm for varnishd %s: %s",
+		if (!VSM_Arg(conf.vsm, 'n', conf.n_flag_name)) {
+			vk_log("VSM_arg", LOG_ERR, "Failed to open shm for varnishd %s: %s",
 					conf.n_flag_name, VSM_Error(conf.vsm));
 			varnish_api_cleaning();
 			exit(1);
@@ -2165,7 +2165,7 @@ int main (int argc, char **argv) {
 		 *   useful if there is no strict start ordering for varnish and varnishkafka.
 		 * - varnish gets restarted and the shm log handle is not valid anymore.
 		 */
-		if (conf.vsm != NULL && !VSM_IsOpen(conf.vsm)) {
+		if (conf.vsm != NULL && VSM_Status(conf.vsm)) {
 			if (varnish_api_open_handles(&conf.vsm, &conf.vsl, &vsl_cursor,
 						     VSL_COPT_TAIL | VSL_COPT_BATCH, &conf.vslq,
 						     conf.q_flag_query) == -1) {
@@ -2192,7 +2192,7 @@ int main (int argc, char **argv) {
 		 */
 		else if (dispatch_status <= -2) {
 			vk_log("VSLQ_Dispatch", LOG_ERR, "Varnish Log abandoned or overrun.");
-			VSM_Close(conf.vsm);
+			//VSM_Close(conf.vsm);
 		}
 
 		/* EOF from the Varnish Log, closing gracefully */

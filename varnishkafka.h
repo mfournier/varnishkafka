@@ -202,7 +202,7 @@ struct conf {
     rd_kafka_topic_conf_t *topic_conf;
 
     /* Varnish shared memory API structures (used in multiple c files) */
-    struct VSM_data *vsm;
+    struct vsm *vsm;
     struct VSL_data *vsl;
     struct VSLQ *vslq;
 };
